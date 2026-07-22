@@ -4,15 +4,24 @@ use std::{
     path::Path
 };
 
-use crate::reader::HeliumError;
+use crate::reader::{HeliumError, OPENVDB_MAGIC};
 
 #[derive(Debug)]
 pub struct HeliumReader {
     file_path: String,
-    openvdb_file_version: u32,
-    openvdb_major_version: u8,
-    openvdb_minor_version: u8,
+
+    header: VdbHeader,
 }
+
+#[derive(Debug)]
+pub struct VdbHeader {
+    pub file_version: u32,
+    pub library_major: u32,
+    pub library_minor: u32,
+    pub has_grid_offsets: bool,
+    pub uuid: String,
+}
+
 
 impl HeliumReader {
     pub fn new(
@@ -21,9 +30,13 @@ impl HeliumReader {
         Self {
             file_path: String::from(file_path),
 
-            openvdb_file_version: 0,
-            openvdb_major_version: 0,
-            openvdb_minor_version: 0,
+            header: VdbHeader {
+                file_version: 0,
+                library_major: 0,
+                library_minor: 0,
+                has_grid_offsets: false,
+                uuid: "".into()
+            }
         }
     }
 
@@ -34,53 +47,85 @@ impl HeliumReader {
         let file_path = Path::new(&self.file_path);
         
         let file = File::open(file_path)?;
-        let file_reader = BufReader::new(file);
+        let mut reader = BufReader::new(file);
 
-        println!("Reading byte by byte!");
+        println!("Reading VDB file at {}!", self.file_path);
 
-        let bytes = file_reader.bytes();
+        self.read_header(&mut reader)?;
 
-        for (idx, byte_result) in bytes.enumerate() {
-            if idx > 10 {
-                break;
-            }
-
-            let byte = byte_result?;
-
-            // Check if magic numbers match
-            if idx < 8 &&
-            (match idx {
-                0 => byte != 32,
-                1 => byte != 66,
-                2 => byte != 68,
-                3 => byte != 86,
-                4 => byte != 0,
-                5 => byte != 0,
-                6 => byte != 0,
-                7 => byte != 0,
-                _ => true
-            }) {
-                return Err(HeliumError::InvalidMagic(idx));
-            }
-
-            // Setting OpenVDB file version
-            if idx == 8 {
-                self.openvdb_file_version = byte as u32;
-            }
-
-            // Setting OpenVDB major and minor version
-            if idx == 9 {
-                self.openvdb_major_version = byte;
-            }
-
-            if idx == 10 {
-                self.openvdb_minor_version = byte;
-            }
-        }
-
+        println!("Done reading VDB file: ");
         self.print();
 
         Ok(())
+    }
+
+    fn read_header<R: Read>(&mut self, reader: &mut R) -> Result<(), HeliumError> {
+        let magic = Self::read_u64_le(reader)?;
+
+        if magic != OPENVDB_MAGIC {
+            return Err(
+                HeliumError::InvalidMagic{
+                    expected: OPENVDB_MAGIC,
+                    found: magic,
+                }
+            );
+        }
+
+        let file_version = Self::read_u32_le(reader)?;
+
+        if !(221..=225).contains(&file_version) {
+            return Err(HeliumError::UnsupportedVersion(file_version));
+        }
+
+        let library_major = Self::read_u32_le(reader)?;
+        let library_minor = Self::read_u32_le(reader)?;
+
+        let has_grid_offsets_raw = Self::read_u8(reader)?;
+        let has_grid_offsets = match has_grid_offsets_raw {
+            0 => false,
+            1 => true,
+            value => {
+                return Err(HeliumError::InvalidBoolean {
+                    field: "has_grid_offsets", 
+                    value
+                });
+            }
+        };
+
+        let mut uuid_bytes = [0u8; 36];
+        reader.read_exact(&mut uuid_bytes)?;
+
+        let uuid = std::str::from_utf8(&uuid_bytes)
+            .map_err(|_| HeliumError::InvalidUuidEncoding)?
+            .to_owned();
+
+        self.header = VdbHeader{ 
+            file_version, 
+            library_major, 
+            library_minor, 
+            has_grid_offsets, 
+            uuid
+        };
+
+        Ok(())
+    }
+
+    fn read_u8<R: Read>(reader: &mut R) -> Result<u8, HeliumError> {
+        let mut bytes = [0_u8; 1];
+        reader.read_exact(&mut bytes)?;
+        Ok(bytes[0])
+    }
+
+    fn read_u32_le<R: Read>(reader: &mut R) -> Result<u32, HeliumError> {
+        let mut bytes = [0_u8; 4];
+        reader.read_exact(&mut bytes)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+
+    fn read_u64_le<R: Read>(reader: &mut R) -> Result<u64, HeliumError> {
+        let mut bytes = [0_u8; 8];
+        reader.read_exact(&mut bytes)?;
+        Ok(u64::from_le_bytes(bytes))
     }
 
     pub fn print(&self) {
@@ -89,11 +134,15 @@ impl HeliumReader {
             \tOpenVDB File Version: {}, \n\
             \tOpenVDB Major Version: {}, \n\
             \tOpenVDB Minor Version: {}, \n\
+            \tHas Grid Offsets: {}, \n\
+            \tUUID: {}, \n\
             ]", 
             self.file_path, 
-            self.openvdb_file_version, 
-            self.openvdb_major_version, 
-            self.openvdb_minor_version
+            self.header.file_version, 
+            self.header.library_major, 
+            self.header.library_minor,
+            self.header.has_grid_offsets,
+            self.header.uuid
         );
 
         println!("{}", reader_string);
