@@ -3,7 +3,7 @@ use crate::reader::reader::HeliumReader;
 pub mod reader;
 
 fn main() {
-    let mut reader = HeliumReader::new("./resources/devil.vdb");
+    let mut reader = HeliumReader::new("./resources/smoke.vdb");
 
     let result = reader.read_file();
 
