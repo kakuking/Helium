@@ -61,9 +61,9 @@ pub enum HeliumError {
     )]
     InvalidGridOffsets {
         grid_index: usize,
-        grid_position: u64,
-        block_position: u64,
-        end_position: u64,
+        grid_position: i64,
+        block_position: i64,
+        end_position: i64,
     },
 
     #[error(
@@ -74,5 +74,55 @@ pub enum HeliumError {
         grid_index: usize,
         end_position: u64,
         file_length: u64,
+    },
+
+    #[error(
+        "Grid {grid_index} contains negative offsets: \
+        grid={grid_position}, block={block_position}, end={end_position}"
+    )]
+    NegativeGridOffsets {
+        grid_index: usize,
+        grid_position: i64,
+        block_position: i64,
+        end_position: i64,
+    },
+
+    #[error("Negative stream position in {field}: {value}")]
+    NegativeStreamPosition {
+        field: &'static str,
+        value: i64,
+    },
+
+    #[error(
+        "Unknown compression flags for grid {grid_index}: {flags:#010X}"
+    )]
+    UnknownCompressionFlags {
+        grid_index: usize,
+        flags: u32,
+    },
+
+    #[error("Unsupported OpenVDB transform type {0:?}")]
+    UnsupportedTransform(String),
+
+    #[error(
+        "Grid {grid_index} transform ends at {topology_start}, \
+        beyond block position {block_position}"
+    )]
+    GridSectionOverlap {
+        grid_index: usize,
+        topology_start: u64,
+        block_position: u64,
+    },
+
+    #[error("Invalid byte range {start}..{end}")]
+    InvalidByteRange {
+        start: u64,
+        end: u64,
+    },
+
+    #[error("Byte range {start}..{end} is too large")]
+    ByteRangeTooLarge {
+        start: u64,
+        end: u64,
     },
 }
