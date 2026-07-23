@@ -1,17 +1,12 @@
-use crate::reader::metadata::Metadata;
+use std::io::{Read, Seek, SeekFrom};
 
-#[derive(Debug, Clone)]
-pub struct GridDescriptor {
-    pub unique_name: String,
-    pub grid_type: String,
-    pub instance_parent_name: String,
-
-    pub grid_position: i64,
-    pub block_position: i64,
-    pub end_position: i64,
-
-    pub save_float_as_half: bool,
-}
+use crate::reader::{
+    HeliumError, 
+    grid_descriptor::GridDescriptor, 
+    helpers::Helper, 
+    metadata::Metadata, 
+    transform::Transform
+};
 
 #[derive(Debug)]
 pub struct Grid {
@@ -24,6 +19,84 @@ pub struct Grid {
     pub raw_topology: Vec<u8>,
 
     pub raw_buffers: Vec<u8>,
+}
+
+impl Grid {
+    pub fn read<R: Read + Seek>(
+        reader: &mut R,
+        descriptor: &GridDescriptor,
+        grid_index: usize,
+        file_length: u64,
+    ) -> Result<Grid, HeliumError> {
+        let grid_position = Helper::checked_offset(descriptor.grid_position, "grid_position")?;
+        let block_position = Helper::checked_offset(descriptor.block_position, "block_position")?;
+        let end_position = Helper::checked_offset(descriptor.end_position, "end_position")?;
+
+        if end_position > file_length {
+            return Err(HeliumError::GridOffsetPastEnd{ 
+                grid_index, 
+                end_position, 
+                file_length
+            });
+        }
+
+        reader.seek(SeekFrom::Start(grid_position))?;
+
+        let compression_raw = Helper::read_u32_le(reader)?;
+        let compression = CompressionFlags::from_raw(compression_raw);
+
+        if compression.unknown_bits() != 0 {
+            return Err(HeliumError::UnknownCompressionFlags {
+                grid_index,
+                flags: compression_raw,
+            });
+        }
+
+        let metadata = Metadata::read(reader)?;
+        let transform = Transform::read(reader)?;
+
+        let topology_start = reader.stream_position()?;
+
+        if topology_start > block_position {
+            return Err(HeliumError::GridSectionOverlap{
+                grid_index, 
+                topology_start, 
+                block_position
+            });
+        }
+
+        let is_instance = !descriptor.instance_parent_name.is_empty();
+        
+        let raw_topology = if is_instance {
+            Vec::new()
+        } else {
+            Helper::read_byte_range(
+                reader, 
+                topology_start, 
+                block_position
+            )?
+        };
+
+        let raw_buffers = if is_instance {
+
+            Vec::new()
+        } else {
+            Helper::read_byte_range(
+                reader, 
+                block_position, 
+                end_position
+            )?
+        };
+
+        Ok(Grid {
+            descriptor: descriptor.clone(),
+            compression,
+            metadata,
+            transform,
+            raw_topology,
+            raw_buffers
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,38 +124,4 @@ impl CompressionFlags {
     pub fn unknown_bits(self) -> u32 {
         self.raw & !(Self::ZIP | Self::ACTIVE_MASK | Self::BLOSC)
     }
-}
-
-#[derive(Debug)]
-pub enum Transform {
-    Affine {
-        matrix: [[f64; 4]; 4],
-    },
-
-    Scale {
-        map_type: String,
-        scale: [f64; 3],
-        voxel_size: [f64; 3],
-        inverse_scale: [f64; 3],
-        inverse_scale_squared: [f64; 3],
-        inverse_twice_scale: [f64; 3],
-    },
-
-    Translation {
-        translation: [f64; 3],
-    },
-
-    ScaleTranslate {
-        map_type: String,
-        translation: [f64; 3],
-        scale: [f64; 3],
-        voxel_size: [f64; 3],
-        inverse_scale: [f64; 3],
-        inverse_scale_squared: [f64; 3],
-        inverse_twice_scale: [f64; 3],
-    },
-
-    Unitary {
-        matrix: [[f64; 4]; 4],
-    },
 }

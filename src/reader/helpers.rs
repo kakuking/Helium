@@ -2,7 +2,6 @@ use std::io::{Read, Seek, SeekFrom};
 
 use crate::reader::{
     HeliumError, 
-    grid::Transform, 
     vdb_constants::MAX_STRING_LENGTH
 };
 
@@ -123,80 +122,5 @@ impl Helper {
         }
 
         Ok(matrix)
-    }
-
-    pub fn read_transform<R: Read>(
-        reader: &mut R,
-    ) -> Result<Transform, HeliumError> {
-        let map_type = Self::read_string(reader)?;
-
-        match map_type.as_str() {
-            "AffineMap" => {
-                let matrix = Self::read_mat4d(reader)?;
-
-                Ok(Transform::Affine {
-                    matrix,
-                })
-            }
-
-            "UnitaryMap" => {
-                let matrix = Self::read_mat4d(reader)?;
-
-                Ok(Transform::Unitary {
-                    matrix,
-                })
-            }
-
-            "ScaleMap" | "UniformScaleMap" => {
-                let scale = Self::read_vec3d(reader)?;
-                let voxel_size = Self::read_vec3d(reader)?;
-                let inverse_scale = Self::read_vec3d(reader)?;
-                let inverse_scale_squared = Self::read_vec3d(reader)?;
-                let inverse_twice_scale = Self::read_vec3d(reader)?;
-
-                Ok(Transform::Scale {
-                    map_type,
-                    scale,
-                    voxel_size,
-                    inverse_scale,
-                    inverse_scale_squared,
-                    inverse_twice_scale,
-                })
-            }
-
-            "TranslationMap" => {
-                let translation = Self::read_vec3d(reader)?;
-
-                Ok(Transform::Translation {
-                    translation,
-                })
-            }
-
-            "ScaleTranslateMap"
-            | "UniformScaleTranslateMap" => {
-                let translation = Self::read_vec3d(reader)?;
-                let scale = Self::read_vec3d(reader)?;
-                let voxel_size = Self::read_vec3d(reader)?;
-                let inverse_scale = Self::read_vec3d(reader)?;
-                let inverse_scale_squared = Self::read_vec3d(reader)?;
-                let inverse_twice_scale = Self::read_vec3d(reader)?;
-
-                Ok(Transform::ScaleTranslate {
-                    map_type,
-                    translation,
-                    scale,
-                    voxel_size,
-                    inverse_scale,
-                    inverse_scale_squared,
-                    inverse_twice_scale,
-                })
-            }
-
-            other => Err(
-                HeliumError::UnsupportedTransform(
-                    other.to_owned(),
-                )
-            ),
-        }
     }
 }
