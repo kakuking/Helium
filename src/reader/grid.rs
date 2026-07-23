@@ -1,26 +1,4 @@
-pub const OPENVDB_MAGIC: u64 = 0x5644_4220;
-pub const MIN_SUPPORTED_VERSION: u32 = 222;
-pub const MAX_SUPPORTED_VERSION: u32 = 225;
-pub const MAX_STRING_LENGTH: usize = 16 * 1024 * 1024;
-pub const MAX_METADATA_COUNT: u32 = 1_000_000;
-pub const MAX_GRID_COUNT: i32 = 1_000_000;
-
-#[derive(Debug)]
-pub struct VdbHeader {
-    pub file_version: u32,
-    pub library_major: u32,
-    pub library_minor: u32,
-    pub has_grid_offsets: bool,
-    pub uuid: String,
-}
-
-#[derive(Debug)]
-pub struct VdbMetadata {
-    pub name: String,
-    pub type_name: String,
-
-    pub payload: Vec<u8>,
-}
+use crate::reader::metadata::Metadata;
 
 #[derive(Debug, Clone)]
 pub struct GridDescriptor {
@@ -36,12 +14,12 @@ pub struct GridDescriptor {
 }
 
 #[derive(Debug)]
-pub struct VdbGrid {
+pub struct Grid {
     pub descriptor: GridDescriptor,
 
     pub compression: CompressionFlags,
-    pub metadata: Vec<VdbMetadata>,
-    pub transform: VdbTransform,
+    pub metadata: Vec<Metadata>,
+    pub transform: Transform,
 
     pub raw_topology: Vec<u8>,
 
@@ -76,7 +54,7 @@ impl CompressionFlags {
 }
 
 #[derive(Debug)]
-pub enum VdbTransform {
+pub enum Transform {
     Affine {
         matrix: [[f64; 4]; 4],
     },

@@ -1,0 +1,6 @@
+pub const OPENVDB_MAGIC: u64 = 0x5644_4220;
+pub const MIN_SUPPORTED_VERSION: u32 = 222;
+pub const MAX_SUPPORTED_VERSION: u32 = 225;
+pub const MAX_STRING_LENGTH: usize = 16 * 1024 * 1024;
+pub const MAX_METADATA_COUNT: u32 = 1_000_000;
+pub const MAX_GRID_COUNT: i32 = 1_000_000;
