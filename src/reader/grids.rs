@@ -13,19 +13,14 @@ use crate::reader::{
 
 #[derive(Debug)]
 pub struct Grids {
-    pub count: usize,
-
     pub descriptors: Vec<GridDescriptor>,
-    pub grids: Vec<Grid>,
+    // pub grids: Vec<Grid>,
 }
 
 impl Grids {
     pub fn new() -> Self {
         Self {
-            count: 0,
-
             descriptors: Vec::new(),
-            grids: Vec::new(),
         }
     }
 
@@ -43,18 +38,24 @@ impl Grids {
             file_length
         )?;
 
-        let grids = Self::read_grids(
-            reader, 
-            &descriptors, 
-            file_length
-        )?;
+        // let grids = Self::read_grids(
+        //     reader, 
+        //     &descriptors, 
+        //     file_length
+        // )?;
 
         Ok(Self {
-            count,
-
             descriptors,
-            grids
         })
+    }
+
+    pub fn descriptor(
+        &self,
+        name: &str
+    ) -> Option<&GridDescriptor> {
+        self.descriptors
+            .iter()
+            .find(|d| d.unique_name == name)
     }
 
     fn read_grid_count<R: Read>(reader: &mut R) -> Result<usize, HeliumError> {
@@ -98,7 +99,7 @@ impl Grids {
         Ok(grid_descriptors)
     }
 
-    fn read_grids<R: Read + Seek>(
+    pub fn read_grids<R: Read + Seek>(
         reader: &mut R,
         descriptors: &[GridDescriptor],
         file_length: u64

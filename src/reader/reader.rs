@@ -1,63 +1,59 @@
 use std::{
     fmt::Debug, 
     fs::File, 
-    io::BufReader, 
+    io::{BufReader, Read, Seek}, 
     path::Path
 };
 
 use crate::reader::{
     HeliumError, 
-    grids_reader::Grids, 
+    grids::Grids, 
     header::Header, 
     metadata::Metadata
 };
 
 #[derive(Debug)]
-pub struct HeliumReader {
-    file_path: String,
-
-    header: Header,
-    file_metadata: Vec<Metadata>,
-    grids: Grids
+pub struct HeliumReader<R: Read + Seek> {
+    pub reader: R,
+    pub file_path: String,
+    pub header: Header,
+    pub file_metadata: Vec<Metadata>,
+    pub grids: Grids
 }
 
-impl HeliumReader {
-    pub fn new(
-        file_path: &str
-    ) -> Self {
-        Self {
-            file_path: String::from(file_path),
-
-            header: Header::new(),
-            file_metadata: Vec::new(),
-            grids: Grids::new(),
-        }
-    }
-
-    pub fn read_file(
-        &mut self
-    ) -> Result<(), HeliumError> {
-
-        let file_path = Path::new(&self.file_path);
+impl HeliumReader<BufReader<File>> {
+    pub fn open(
+        file_path_str: &str
+    ) -> Result<Self, HeliumError> {
+        let file_path = Path::new(&file_path_str);
         let file = File::open(file_path)?;
         let file_length = file.metadata()?.len();
         
         let mut reader = BufReader::new(file);
 
-        println!("Reading VDB file at {}!", self.file_path);
+        println!("Reading VDB file at {}!", file_path_str);
 
-        self.header = Header::read(&mut reader)?;
-        self.file_metadata = Metadata::read(&mut reader)?;
+        let header = Header::read(&mut reader)?;
+        let file_metadata = Metadata::read(&mut reader)?;
 
-        self.grids = Grids::read(
+        let grids = Grids::read(
             &mut reader, 
-            &self.header, 
+            &header, 
             file_length
         )?;
 
         println!("Done reading VDB file: ");
-        println!("{:#?}", self);
 
-        Ok(())
+        let helium_reader = HeliumReader {
+            reader,
+            file_path: file_path_str.into(),
+            header,
+            file_metadata,
+            grids
+        };
+
+        println!("{:#?}", helium_reader);
+
+        Ok(helium_reader)
     }
 }

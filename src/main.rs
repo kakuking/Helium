@@ -1,14 +1,13 @@
 use crate::reader::reader::HeliumReader;
 
 pub mod reader;
+pub mod tree;
 
-fn main() {
-    let mut reader = HeliumReader::new("./resources/smoke.vdb");
+fn main() -> Result<(), reader::HeliumError>{
+    let _reader = match HeliumReader::open("./resources/smoke.vdb") {
+        Ok(reader) => reader,
+        Err(e) => return Err(e)
+    };
 
-    let result = reader.read_file();
-
-    match result {
-        Ok(_) => println!("Successfully read file!"),
-        Err(e) => eprintln!("Error: {e}")
-    }
+    Ok(())
 }

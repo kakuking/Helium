@@ -1,11 +1,14 @@
 use std::io::{Read, Seek, SeekFrom};
 
-use crate::reader::{
-    HeliumError, 
-    grid_descriptor::GridDescriptor, 
-    helpers::Helper, 
-    metadata::Metadata, 
-    transform::Transform
+use crate::{
+    reader::{
+        HeliumError, 
+        grid_descriptor::GridDescriptor, 
+        helpers::Helper, 
+        metadata::Metadata, 
+        transform::Transform
+    }, 
+    tree::tree::Tree
 };
 
 #[derive(Debug)]
@@ -16,9 +19,7 @@ pub struct Grid {
     pub metadata: Vec<Metadata>,
     pub transform: Transform,
 
-    pub raw_topology: Vec<u8>,
-
-    pub raw_buffers: Vec<u8>,
+    pub tree: Option<Tree>
 }
 
 impl Grid {
@@ -67,25 +68,71 @@ impl Grid {
 
         let is_instance = !descriptor.instance_parent_name.is_empty();
         
-        let raw_topology = if is_instance {
-            Vec::new()
+        let tree = if is_instance {
+            None
         } else {
-            Helper::read_byte_range(
-                reader, 
-                topology_start, 
-                block_position
-            )?
-        };
+            if descriptor.grid_type
+                != "Tree_float_5_4_3"
+            {
+                return Err(
+                    HeliumError::UnsupportedGridType(
+                        descriptor.grid_type.clone(),
+                    )
+                );
+            }
 
-        let raw_buffers = if is_instance {
+            let topology_start =
+                reader.stream_position()?;
 
-            Vec::new()
-        } else {
-            Helper::read_byte_range(
-                reader, 
-                block_position, 
-                end_position
-            )?
+            if topology_start > block_position {
+                return Err(
+                    HeliumError::GridSectionOverlap {
+                        grid_index,
+                        topology_start,
+                        block_position,
+                    }
+                );
+            }
+
+            let mut tree = Tree::read_topology(
+                reader,
+                compression,
+                descriptor.save_float_as_half,
+            )?;
+
+            let topology_end =
+                reader.stream_position()?;
+
+            if topology_end != block_position {
+                return Err(
+                    HeliumError::TopologyPositionMismatch {
+                        grid_index,
+                        expected: block_position,
+                        found: topology_end,
+                    }
+                );
+            }
+
+            tree.read_buffers(
+                reader,
+                compression,
+                descriptor.save_float_as_half,
+            )?;
+
+            let buffers_end =
+                reader.stream_position()?;
+
+            if buffers_end != end_position {
+                return Err(
+                    HeliumError::BufferPositionMismatch {
+                        grid_index,
+                        expected: end_position,
+                        found: buffers_end,
+                    }
+                );
+            }
+
+            Some(tree)
         };
 
         Ok(Grid {
@@ -93,8 +140,7 @@ impl Grid {
             compression,
             metadata,
             transform,
-            raw_topology,
-            raw_buffers
+            tree
         })
     }
 }

@@ -24,6 +24,23 @@ impl Helper {
             .map_err(HeliumError::InvalidStringEncoding)
     }
 
+    pub fn read_bool<R: Read>(
+        reader: &mut R,
+        field: &'static str,
+    ) -> Result<bool, HeliumError> {
+        match Self::read_u8(reader)? {
+            0 => Ok(false),
+            1 => Ok(true),
+
+            value => {
+                Err(HeliumError::InvalidBoolean {
+                    field,
+                    value,
+                })
+            }
+        }
+    }
+
     pub fn read_u8<R: Read>(reader: &mut R) -> Result<u8, HeliumError> {
         let mut bytes = [0_u8; 1];
         reader.read_exact(&mut bytes)?;
@@ -46,6 +63,12 @@ impl Helper {
         let mut bytes = [0_u8; 4];
         reader.read_exact(&mut bytes)?;
         Ok(i32::from_le_bytes(bytes))
+    }
+
+    pub fn read_f32_le<R: Read>(reader: &mut R) -> Result<f32, HeliumError> {
+        let mut bytes = [0_u8; 4];
+        reader.read_exact(&mut bytes)?;
+        Ok(f32::from_le_bytes(bytes))
     }
 
     pub fn read_u64_le<R: Read>(reader: &mut R) -> Result<u64, HeliumError> {

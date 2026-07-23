@@ -125,4 +125,32 @@ pub enum HeliumError {
         start: u64,
         end: u64,
     },
+    
+    #[error("Invalid Tree Buffer Count {0}")]
+    InvalidTreeBufferCount(i32),
+    
+    #[error("Unsupported Grid Type: \"{0}\"")]
+    UnsupportedGridType(String),
+    
+    #[error("Half float not implemented")]
+    HalfFloatNotImplemented,
+    
+    #[error("Compressed values not implemented, flags: {flags}")]
+    CompressedValuesNotImplemented {
+        flags: u32,
+    },
+    
+    #[error("Topology position mismatch, grid index: {grid_index}, expected: {expected}, found: {found}")]
+    TopologyPositionMismatch {
+        grid_index: usize,
+        expected: u64,
+        found: u64,
+    },
+    
+    #[error("Buffer position mismatch, grid index: {grid_index}, expected: {expected}, found: {found}")]
+    BufferPositionMismatch {
+        grid_index: usize,
+        expected: u64,
+        found: u64,
+    },
 }
